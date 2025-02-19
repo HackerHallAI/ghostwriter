@@ -15,8 +15,13 @@ from typing import List
 
 load_dotenv()
 
+
+# TODO Make sure to add doc strings to your agent tools because that is how it knows when to use them!
+
+
 llm = os.getenv("PRIMARY_MODEL", "llama3.1:latest")
 base_url = os.getenv("BASE_URL", "http://localhost:11434/v1")
+model = OpenAIModel(model_name=llm, base_url=base_url)
 
 
 @dataclass
@@ -70,7 +75,6 @@ def add_reasoner_output(ctx: RunContext[str]) -> str:
     """
 
 
-# TODO create all of the tools that you need for the agent to work!
 @pydantic_ai_writer.tool
 async def retrieve_relevant_documentation(
     ctx: RunContext[PydanticAIDeps], user_query: str
@@ -78,4 +82,25 @@ async def retrieve_relevant_documentation(
     """
     Retrieve relevant documentation chunks based on the query with RAG.
     """
-    pass
+    qdrant_client = ctx.deps.qdrant_client
+    result = qdrant_client.query(collection_name="web_crawled_data", query=user_query)
+    return result
+
+
+async def list_skool_pages_helper(qdrant_client: QdrantClient) -> List[str]:
+    """
+    List all the skool pages from the vector database.
+    """
+    result = qdrant_client.scroll(collection_name="web_crawled_data")
+    return [point.payload["url"] for point in result]
+
+
+# TODO I think that we need to reference the url chunks or title or something to get piece together larger chunks of information
+@pydantic_ai_writer.tool
+async def get_page_content(ctx: RunContext[PydanticAIDeps], url: str) -> str:
+    """
+    Get the content of a page from the vector database.
+    """
+    qdrant_client = ctx.deps.qdrant_client
+    result = qdrant_client.query(collection_name="web_crawled_data", query=url)
+    return result
