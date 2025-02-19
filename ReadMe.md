@@ -9,6 +9,19 @@ We must save the templates and data to the vector database. (qdrant or supabase)
 
 Then I think we want to build the AI agent that will help write our articles.
 
+---
+*** Currently here ***
+Start with just a simple agent that can read the data from the vector database.
+And use that as context to answer a question about the data.
+
+Then move on to having it write an article. 
+** Save the first article **
+This is to show it's growth.
+
+When you get that done add the ability to use streamlit to chat with the agent.
+When you get that part done I would add a research agent.
+---
+
 This will be part pydantic AI and part langchain.
 
 At first we are going to have more human interaction because I think that is important to people writing articles, correctly.
