@@ -122,3 +122,4 @@ cython_debug/
 .DS_Store
 
 data/
+qdrant_data/

@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from playwright.async_api import Page, BrowserContext
+from qdrant_client.http.models import PointStruct
+from ghostwriter.qdrant_utils import get_qdrant_client, ensure_collection_exists
+from qdrant_client import QdrantClient
 
 load_dotenv()
 
@@ -21,7 +24,9 @@ class CrawledData:
     content: str
 
 
-async def login_and_crawl(urls: List[str], output_dir: str):
+async def login_and_crawl(
+    urls: List[str], output_dir: str, qdrant_client: QdrantClient
+):
     """Login to Skool and crawl multiple URLs, saving the content as markdown files."""
     browser_config = BrowserConfig(headless=True, verbose=False)
     crawl_config = CrawlerRunConfig(
@@ -35,7 +40,11 @@ async def login_and_crawl(urls: List[str], output_dir: str):
 
     async def on_page_context_created(page: Page, context: BrowserContext, **kwargs):
         # Perform login
-        await page.goto("https://www.skool.com/ship30for30/about")
+        await page.goto(
+            "https://www.skool.com/ship30for30/about",
+            wait_until="networkidle",
+            timeout=60000,
+        )
         await page.click(
             "button[class='styled__ButtonWrapper-sc-dscagy-1 kkQuiY styled__SignUpButtonDesktop-sc-1y5fz1y-0 clPGTu']"
         )
@@ -69,6 +78,19 @@ async def login_and_crawl(urls: List[str], output_dir: str):
                     f.write(crawled_data.content)
 
                 print(f"Successfully crawled and saved: {url}")
+
+                # Insert data into Qdrant
+                point = PointStruct(
+                    id=url,  # Use URL as a unique identifier
+                    vector=[],  # Placeholder for vector data
+                    payload={
+                        "title": crawled_data.title,
+                        "url": crawled_data.url,
+                        "content": crawled_data.content,
+                    },
+                )
+                qdrant_client.upsert(collection_name="web_crawled_data", points=[point])
+
             else:
                 print(f"Failed to crawl {url} - Error: {result.error_message}")
 
@@ -98,9 +120,17 @@ async def main():
 
     urls = urls[0:1]
 
+    # Initialize Qdrant client with local persistence
+    qdrant_client = get_qdrant_client(
+        mode="local"
+    )  # Change to "docker" for Docker mode
+
+    # Ensure the collection exists
+    ensure_collection_exists(qdrant_client, "web_crawled_data")
+
     # Crawl all URLs
     if urls:
-        await login_and_crawl(urls, output_dir)
+        await login_and_crawl(urls, output_dir, qdrant_client)
     else:
         print("No URLs found to crawl.")
 
