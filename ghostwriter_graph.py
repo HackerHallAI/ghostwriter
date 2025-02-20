@@ -1,15 +1,14 @@
 import os
 import asyncio
 from qdrant_client import QdrantClient
-from langgraph import Graph, Node
 from pydantic import BaseModel
 from typing import TypedDict, Annotated, List
-from ghostwriter.qdrant_utils import get_qdrant_client
+from qdrant_utils import get_qdrant_client
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai import Agent, RunContext
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt
-from ghostwriter.ai_writer import (
+from ai_writer import (
     list_skool_pages_helper,
     PydanticAIDeps,
     pydantic_ai_writer,
@@ -22,21 +21,22 @@ from langgraph.checkpoint.memory import MemorySaver
 # ollama_model = OpenAIModel(model_name="llama3.2", base_url="http://localhost:11434/v1")
 base_url = "http://localhost:11434/v1"
 reasoner_llm_model = "deepseek-r1:14b"
+api_key = "fakeshit!"
 
 reasoner = Agent(
-    OpenAIModel(reasoner_llm_model, base_url=base_url),
+    OpenAIModel(reasoner_llm_model, base_url=base_url, api_key=api_key),
     system_prompt="You are an expert at writing viral content for social media.",
 )
 
 
 primary_llm_model = "llama3.1:latest"
 router_agent = Agent(
-    OpenAIModel(primary_llm_model, base_url=base_url),
+    OpenAIModel(primary_llm_model, base_url=base_url, api_key=api_key),
     system_prompt="Your job is to route the user message either to the end of the conversation or to continue coding the AI agent.",
 )
 
 end_conversation_agent = Agent(
-    OpenAIModel(primary_llm_model, base_url=base_url),
+    OpenAIModel(primary_llm_model, base_url=base_url, api_key=api_key),
     system_prompt="Your job is to end a conversation for creating an AI agent by giving instructions for how to execute the agent and they saying a nice goodbye to the user.",
 )
 
@@ -150,6 +150,7 @@ builder = StateGraph(AgentState)
 
 builder.add_node("define_scope_with_reasoner", define_scope_with_reasoner)
 builder.add_node("writer_agent", writer_agent)
+builder.add_node("get_next_user_message", get_next_user_message)
 builder.add_node("finish_conversation", finish_conversation)
 
 builder.add_edge(START, "define_scope_with_reasoner")

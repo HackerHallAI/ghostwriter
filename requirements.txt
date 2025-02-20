@@ -2,3 +2,8 @@ crawl4ai
 qdrant-client
 langgraph
 pydantic-ai
+logfire
+streamlit
+fastembed
+sentence_transformers
+ollama

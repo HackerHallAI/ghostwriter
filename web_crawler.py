@@ -4,24 +4,34 @@ This is just going to crawl the list of urls and then we will turn that into the
 
 import os
 import asyncio
+import uuid
 from dotenv import load_dotenv
-from typing import List
+from typing import List, Dict, Any
 from dataclasses import dataclass
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from playwright.async_api import Page, BrowserContext
 from qdrant_client.http.models import PointStruct
-from ghostwriter.qdrant_utils import get_qdrant_client, ensure_collection_exists
+from qdrant_utils import get_qdrant_client, ensure_collection_exists
 from qdrant_client import QdrantClient
+import datetime as dt
+from datetime import timezone
+from urllib.parse import urlparse
+import ollama
+import json
 
 load_dotenv()
 
 
 @dataclass
-class CrawledData:
-    title: str
+class ProcessedChunk:
     url: str
+    chunk_number: int
+    title: str
+    summary: str
     content: str
+    metadata: Dict[str, Any]
+    embedding: List[float]
 
 
 async def login_and_crawl(
@@ -70,7 +80,7 @@ async def login_and_crawl(
                 title = extract_title(content)
 
                 # Create a CrawledData instance
-                crawled_data = CrawledData(title=title, url=url, content=content)
+                crawled_data = ProcessedChunk(title=title, url=url, content=content)
 
                 # Save content to markdown file using title as filename
                 file_path = os.path.join(output_dir, f"{crawled_data.title}.md")
@@ -79,10 +89,17 @@ async def login_and_crawl(
 
                 print(f"Successfully crawled and saved: {url}")
 
+                # Generate a UUID for the point
+                point_id = str(uuid.uuid4())
+
+                # Use a placeholder vector of the correct size
+                vector_size = 4  # Set to the correct vector size
+                placeholder_vector = [0.0] * vector_size
+
                 # Insert data into Qdrant
                 point = PointStruct(
-                    id=url,  # Use URL as a unique identifier
-                    vector=[],  # Placeholder for vector data
+                    id=point_id,  # Use generated UUID as a unique identifier
+                    vector=placeholder_vector,  # Use placeholder vector
                     payload={
                         "title": crawled_data.title,
                         "url": crawled_data.url,
@@ -109,6 +126,132 @@ def extract_title(content: str) -> str:
     return title
 
 
+def chunk_text(text: str, chunk_size: int = 5000) -> List[str]:
+    """Chunk the text into smaller chunks."""
+    chunks = []
+    start = 0
+    text_length = len(text)
+
+    while start < text_length:
+        end = start + chunk_size
+
+        if end > text_length:
+            chunks.append(text[start:].strip())
+            break
+
+        chunk = text[start:end]
+        code_block = chunk.rfind("```")
+
+        if code_block != -1 and code_block > chunk_size * 0.3:
+            end = start + code_block
+
+        elif "\n\n" in chunk:
+            last_break = chunk.rfind("\n\n")
+            if last_break > chunk_size * 0.3:
+                end = start + last_break
+
+        elif ". " in chunk:
+            last_period = chunk.rfind(". ")
+            if last_period > chunk_size * 0.3:
+                end = start + last_period + 1
+
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+        start = max(start + 1, end)
+
+    return chunks
+
+
+async def get_title_and_summary(chunk: str, url: str) -> Dict[str, Any]:
+    """Get the title and summary using LLM."""
+    system_prompt = """You are an AI that extracts titles and summaries from documentation chunks.
+    Return a JSON object with 'title' and 'summary' keys.
+    For the title: If this seems like the start of a document, extract its title. If it's a middle chunk, derive a descriptive title.
+    For the summary: Create a concise summary of the main points in this chunk.
+    Keep both title and summary concise but informative."""
+
+    try:
+        response = await ollama.chat(
+            model="deepseek-r1:14b",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": f"URL: {url}\n\nContent:\n{chunk[:1000]}...",
+                },
+            ],
+            format="json",
+            stream=False,
+        )
+
+        return json.loads(response.choices[0].message.content)
+    except Exception as e:
+        print(f"Error getting title and summary: {e}")
+        return {
+            "title": "Error processing title",
+            "summary": "Error processing summary",
+        }
+
+
+async def get_embedding(text: str) -> List[float]:
+    """Get the embedding for a text using LLM."""
+    try:
+        response = await ollama.embed(
+            model="nomic-embed-text",
+            input=text,
+        )
+        # TODO: if something is broken it is probably this!
+        return response["embeddings"]
+    except Exception as e:
+        print(f"Error getting embedding: {e}")
+        return [0.0] * 1536
+
+
+async def process_chunk(chunk: str, chunk_number: int, url: str) -> ProcessedChunk:
+    """Process a single chunk of text."""
+    extracted = await get_title_and_summary(chunk, url)
+
+    embedding = await get_embedding(chunk)
+
+    # TODO: Update the source when we start to have more than one source!
+    metadata = {
+        "source": "30for30_skool",
+        "chunk_size": len(chunk),
+        "crawled_at": dt.now(timezone.utc).isoformat(),
+        "url_path": urlparse(url).path,
+    }
+
+    return ProcessedChunk(
+        url=url,
+        chunk_number=chunk_number,
+        title=extracted["title"],
+        summary=extracted["summary"],
+        content=chunk,
+        metadata=metadata,
+        embedding=embedding,
+    )
+
+
+async def insert_chunk(chunk: ProcessedChunk):
+    """Insert a chunk into Qdrant."""
+    pass
+
+
+async def process_and_store_document(url: str, markdown: str):
+    """Process and store a document in XXX."""
+    chunks = chunk_text(markdown)
+
+    tasks = [process_chunk(chunk, i, url) for i, chunk in enumerate(chunks)]
+
+    processed_chunks = await asyncio.gather(*tasks)
+
+    insert_tasks = [insert_chunk(chunk) for chunk in processed_chunks]
+
+    await asyncio.gather(*insert_tasks)
+
+
 async def main():
     # Read URLs from file
     with open("data/skool_urls.txt", "r") as file:
@@ -122,11 +265,12 @@ async def main():
 
     # Initialize Qdrant client with local persistence
     qdrant_client = get_qdrant_client(
-        mode="local"
-    )  # Change to "docker" for Docker mode
+        mode="docker"
+    )  # Change to "docker" for Docker mode or "local" for local mode
 
     # Ensure the collection exists
-    ensure_collection_exists(qdrant_client, "web_crawled_data")
+    vector_size = 4  # Set to the correct vector size
+    ensure_collection_exists(qdrant_client, "web_crawled_data", vector_size)
 
     # Crawl all URLs
     if urls:

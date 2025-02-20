@@ -1,7 +1,7 @@
 import os
 import uuid
 from qdrant_client.http.models import PointStruct
-from ghostwriter.qdrant_utils import get_qdrant_client, ensure_collection_exists
+from qdrant_utils import get_qdrant_client, ensure_collection_exists
 
 
 def read_markdown_file(file_path: str) -> str:
@@ -30,18 +30,22 @@ def main():
     title = extract_title(content)
 
     # Initialize Qdrant client with local persistence
-    qdrant_client = get_qdrant_client(mode="local")
+    qdrant_client = get_qdrant_client(mode="docker")
 
     # Ensure the collection exists
-    ensure_collection_exists(qdrant_client, "web_crawled_data", vector_size=0)
+    vector_size = 4  # Set to the correct vector size
+    ensure_collection_exists(qdrant_client, "web_crawled_data", vector_size)
 
     # Generate a UUID for the point ID
     point_id = str(uuid.uuid4())
 
+    # Use a placeholder vector of the correct size
+    placeholder_vector = [0.0] * vector_size
+
     # Insert data into Qdrant
     point = PointStruct(
         id=point_id,  # Use a valid UUID
-        vector=[],  # Placeholder for vector data
+        vector=placeholder_vector,  # Use placeholder vector
         payload={
             "title": title,
             "url": "https://www.skool.com/ship30for30/classroom/d5bbd4ff?md=6e5b391606c545eb9d8c7f2347421aa9",

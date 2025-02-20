@@ -31,8 +31,8 @@ class CLI:
         )
 
     async def chat(self):
-        print("GitHub Agent CLI (type 'quit' to exit)")
-        print("Enter your message:")
+        print("Ghostwriter Agent CLI (type 'quit' to exit)")
+        print("What topic should we write about:")
 
         try:
             while True:
@@ -50,7 +50,7 @@ class CLI:
                     ModelRequest(parts=[UserPromptPart(content=user_input)])
                 )
 
-                # Store itermediatry messages like tool calls and responses
+                # Store intermediary messages like tool calls and responses
                 filtered_messages = [
                     msg
                     for msg in result.new_messages()
@@ -74,7 +74,11 @@ class CLI:
                     ModelResponse(parts=[TextPart(content=result.data)])
                 )
         finally:
-            await self.deps.client.aclose()
+            # Close the Qdrant client if necessary
+            # await self.deps.qdrant_client.close()
+            # If the Qdrant client does not need to be closed, remove this line
+            # If it does, use the appropriate method (e.g., self.deps.qdrant_client.close())
+            pass
 
 
 async def main():

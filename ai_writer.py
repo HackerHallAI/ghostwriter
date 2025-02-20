@@ -4,12 +4,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 import logfire
 import asyncio
-import httpx
 import os
 
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.models.openai import OpenAIModel
-from openai import AsyncOpenAI
 from qdrant_client import QdrantClient
 from typing import List
 
@@ -21,7 +19,7 @@ load_dotenv()
 
 llm = os.getenv("PRIMARY_MODEL", "llama3.1:latest")
 base_url = os.getenv("BASE_URL", "http://localhost:11434/v1")
-model = OpenAIModel(model_name=llm, base_url=base_url)
+model = OpenAIModel(model_name=llm, base_url=base_url, api_key="fakeshit!")
 
 
 @dataclass
@@ -83,7 +81,9 @@ async def retrieve_relevant_documentation(
     Retrieve relevant documentation chunks based on the query with RAG.
     """
     qdrant_client = ctx.deps.qdrant_client
-    result = qdrant_client.query(collection_name="web_crawled_data", query=user_query)
+    result = qdrant_client.query(
+        collection_name="web_crawled_data", query_text=user_query
+    )
     return result
 
 
@@ -91,8 +91,15 @@ async def list_skool_pages_helper(qdrant_client: QdrantClient) -> List[str]:
     """
     List all the skool pages from the vector database.
     """
-    result = qdrant_client.scroll(collection_name="web_crawled_data")
-    return [point.payload["url"] for point in result]
+    try:
+        result, _ = qdrant_client.scroll(collection_name="web_crawled_data")
+        urls = [point.payload["url"] for point in result if "url" in point.payload]
+        if not urls:
+            print("No URLs found in the collection.")
+        return urls
+    except Exception as e:
+        print(f"Error retrieving skool pages: {e}")
+        return []
 
 
 # TODO I think that we need to reference the url chunks or title or something to get piece together larger chunks of information

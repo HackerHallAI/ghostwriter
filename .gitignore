@@ -123,3 +123,4 @@ cython_debug/
 
 data/
 qdrant_data/
+qdrant_storage/
