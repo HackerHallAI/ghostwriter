@@ -23,6 +23,9 @@ import json
 load_dotenv()
 
 
+ollama_client = ollama.AsyncClient()
+
+
 @dataclass
 class ProcessedChunk:
     url: str
@@ -32,6 +35,12 @@ class ProcessedChunk:
     content: str
     metadata: Dict[str, Any]
     embedding: List[float]
+
+
+def read_markdown_file(file_path: str) -> str:
+    """Read the content of a markdown file."""
+    with open(file_path, "r", encoding="utf-8") as file:
+        return file.read()
 
 
 async def login_and_crawl(
@@ -72,44 +81,20 @@ async def login_and_crawl(
     try:
 
         async def process_url(url: str):
-            result = await crawler.arun(url, config=crawl_config, session_id="session1")
-            if result.success:
-                content = result.markdown_v2.raw_markdown
+            markdown_file_path = "data/30for30_md/og_test_url_1.md"
 
-                # Extract title from content
-                title = extract_title(content)
+            # Read the content from the markdown file
+            content = read_markdown_file(markdown_file_path)
 
-                # Create a CrawledData instance
-                crawled_data = ProcessedChunk(title=title, url=url, content=content)
+            await process_and_store_document(url, content)
 
-                # Save content to markdown file using title as filename
-                file_path = os.path.join(output_dir, f"{crawled_data.title}.md")
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(crawled_data.content)
-
-                print(f"Successfully crawled and saved: {url}")
-
-                # Generate a UUID for the point
-                point_id = str(uuid.uuid4())
-
-                # Use a placeholder vector of the correct size
-                vector_size = 4  # Set to the correct vector size
-                placeholder_vector = [0.0] * vector_size
-
-                # Insert data into Qdrant
-                point = PointStruct(
-                    id=point_id,  # Use generated UUID as a unique identifier
-                    vector=placeholder_vector,  # Use placeholder vector
-                    payload={
-                        "title": crawled_data.title,
-                        "url": crawled_data.url,
-                        "content": crawled_data.content,
-                    },
-                )
-                qdrant_client.upsert(collection_name="web_crawled_data", points=[point])
-
-            else:
-                print(f"Failed to crawl {url} - Error: {result.error_message}")
+            # result = await crawler.arun(url, config=crawl_config, session_id="session1")
+            # if result.success:
+            #     print(f"Successfully crawled: {url}")
+            #     content = result.markdown_v2.raw_markdown
+            #     await process_and_store_document(url, content)
+            # else:
+            #     print(f"Failed to crawl {url} - Error: {result.error_message}")
 
         # Process all URLs concurrently
         await asyncio.gather(*[process_url(url) for url in urls])
@@ -172,56 +157,63 @@ async def get_title_and_summary(chunk: str, url: str) -> Dict[str, Any]:
     For the summary: Create a concise summary of the main points in this chunk.
     Keep both title and summary concise but informative."""
 
-    try:
-        response = await ollama.chat(
-            model="deepseek-r1:14b",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": f"URL: {url}\n\nContent:\n{chunk[:1000]}...",
-                },
-            ],
-            format="json",
-            stream=False,
-        )
+    print(f"chunk: {chunk[:1000]}")
 
-        return json.loads(response.choices[0].message.content)
-    except Exception as e:
-        print(f"Error getting title and summary: {e}")
-        return {
-            "title": "Error processing title",
-            "summary": "Error processing summary",
-        }
+    response = await ollama_client.chat(
+        model="deepseek-r1:14b",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": f"URL: {url}\n\nContent:\n{chunk[:1000]}...",
+            },
+        ],
+        format="json",
+    )
+
+    print(f"Response: {response}")
+
+    # Access the response content directly if 'choices' is not available
+    response_content = json.loads(response.message.content)
+
+    print(f"Response content: {response_content}")
+
+    return response_content
 
 
 async def get_embedding(text: str) -> List[float]:
     """Get the embedding for a text using LLM."""
-    try:
-        response = await ollama.embed(
-            model="nomic-embed-text",
-            input=text,
-        )
-        # TODO: if something is broken it is probably this!
-        return response["embeddings"]
-    except Exception as e:
-        print(f"Error getting embedding: {e}")
-        return [0.0] * 1536
+    # try:
+    response = await ollama_client.embed(
+        model="nomic-embed-text",
+        input=text,
+    )
+
+    print(f"Response: {response['embeddings']}")
+    # TODO: if something is broken it is probably this!
+    return response["embeddings"]
+    # except Exception as e:
+    #     print(f"Error getting embedding: {e}")
+    #     return [0.0] * 768
 
 
 async def process_chunk(chunk: str, chunk_number: int, url: str) -> ProcessedChunk:
     """Process a single chunk of text."""
-    extracted = await get_title_and_summary(chunk, url)
-
+    # extracted = await get_title_and_summary(chunk, url)
+    extracted = {"title": "test", "summary": "test"}
     embedding = await get_embedding(chunk)
 
     # TODO: Update the source when we start to have more than one source!
     metadata = {
         "source": "30for30_skool",
         "chunk_size": len(chunk),
-        "crawled_at": dt.now(timezone.utc).isoformat(),
+        "crawled_at": dt.datetime.now(timezone.utc).isoformat(),
         "url_path": urlparse(url).path,
     }
+
+    print(f"Extracted: {extracted}")
+    print(f"embedding: {embedding}")
+    print(f"Metadata: {metadata}")
 
     return ProcessedChunk(
         url=url,
@@ -236,7 +228,29 @@ async def process_chunk(chunk: str, chunk_number: int, url: str) -> ProcessedChu
 
 async def insert_chunk(chunk: ProcessedChunk):
     """Insert a chunk into Qdrant."""
-    pass
+    qdrant_client = get_qdrant_client(mode="docker")
+    print(f"Inserting chunk: {chunk.title}")
+
+    def flatten_embedding(embedding: List[List[float]]) -> List[float]:
+        return [item for sublist in embedding for item in sublist]
+
+    # Use this function to flatten your embedding before inserting it into Qdrant
+    flattened_embedding = flatten_embedding(chunk.embedding)
+
+    point = PointStruct(
+        id=str(uuid.uuid4()),  # Use a unique identifier
+        vector=flattened_embedding,  # Use the flattened embedding as the vector
+        payload={
+            "title": chunk.title,
+            "summary": chunk.summary,
+            "content": chunk.content,
+            "metadata": chunk.metadata,
+            "url": chunk.url,
+            "chunk_number": chunk.chunk_number,
+        },
+    )
+
+    qdrant_client.upsert(collection_name="web_crawled_data", points=[point])
 
 
 async def process_and_store_document(url: str, markdown: str):
@@ -269,7 +283,7 @@ async def main():
     )  # Change to "docker" for Docker mode or "local" for local mode
 
     # Ensure the collection exists
-    vector_size = 4  # Set to the correct vector size
+    vector_size = 768  # Set to the correct vector size
     ensure_collection_exists(qdrant_client, "web_crawled_data", vector_size)
 
     # Crawl all URLs
@@ -281,3 +295,18 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+# async def main():
+#     # Get URLs from Pydantic AI docs
+#     urls = get_pydantic_ai_docs_urls()
+#     if not urls:
+#         print("No URLs found to crawl")
+#         return
+
+#     print(f"Found {len(urls)} URLs to crawl")
+#     await crawl_parallel(urls)
+
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
