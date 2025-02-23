@@ -124,3 +124,7 @@ cython_debug/
 data/
 qdrant_data/
 qdrant_storage/
+
+# I think this will be okay.
+tmp*
+temp*
