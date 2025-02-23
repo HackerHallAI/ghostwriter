@@ -346,7 +346,7 @@ async def main():
     output_dir = "data/30for30_md"
     os.makedirs(output_dir, exist_ok=True)
 
-    urls = urls[0:1]
+    # urls = urls[0:1]
 
     # Initialize Qdrant client with local persistence
     qdrant_client = get_qdrant_client(
