@@ -208,3 +208,10 @@ TODO: This should not use the user query to get the vector.
 It was useful to figure out how to do this effectively but
 we actually just need to get all of the relevent information from the system prompt
 and create the basis of a post. 
+
+
+
+# Current Issue!!! LOOOK AT ME
+1. The messages or original message from the user does not seem to be getting passed to the writer agent.
+
+This is shown in output/test_output.txt

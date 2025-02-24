@@ -101,6 +101,9 @@ async def writer_agent(state: AgentState, writer):
     result = await pydantic_ai_writer.run(
         state["latest_user_message"], deps=deps, message_history=message_history
     )
+
+    print(f"State.scope: {state['scope']}\n\n")
+    print(f"State.messages: {['\n'.join(message) for message in message_history]}\n\n")
     writer(result.data)
 
     return {"messages": [result.new_messages_json()]}
@@ -149,6 +152,7 @@ async def finish_conversation(state: AgentState, writer):
     return {"messages": [result.new_messages_json()]}
 
 
+# Please don't delete this code.
 # builder = StateGraph(AgentState)
 
 # builder.add_node("define_scope_with_reasoner", define_scope_with_reasoner)
