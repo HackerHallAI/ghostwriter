@@ -67,6 +67,15 @@ pydantic_ai_writer = Agent(
 
 @pydantic_ai_writer.system_prompt
 def add_reasoner_output(ctx: RunContext[str]) -> str:
+    """
+    Add the reasoner output to the system prompt.
+
+    Args:
+        ctx (RunContext[str]): The context of the run.
+
+    Returns:
+        str: The system prompt with the reasoner output.
+    """
     return f"""
     \n\nAdditional thoughts/instructions from the reasoner LLM. 
     This scope includes documentation pages for you to search as well: 
@@ -84,21 +93,53 @@ async def retrieve_relevant_documentation(
 ) -> str:
     """
     Retrieve relevant documentation chunks based on the query with RAG.
+
+    Args:
+        ctx (RunContext[PydanticAIDeps]): The context of the run.
+        user_query (str): The query to retrieve relevant documentation for.
+
+    Returns:
+        str: The relevant documentation chunks.
     """
     qdrant_client = ctx.deps.qdrant_client
-    # This was wrong!
-    # result = qdrant_client.query(collection_name="ship30", query_text=user_query)
-    # Need to turn user_query into a vector
-    # Below is a concept not how it actually works
-    # vector = qdrant_client.embed_query(user_query)
     query_vector = await get_ollama_flat_embedding_vector(user_query)
     result = qdrant_client.search(collection_name="ship30", query_vector=query_vector)
-    return result
+
+    if not result:
+        return "No relevant documentation found."
+
+    print(f"Results: {result}")
+
+    formatted_chunks = []
+    for doc in result:
+        chunk_text = f"""
+        # {doc.payload['title']}
+
+        {doc.payload['content']}
+        """
+        formatted_chunks.append(chunk_text)
+
+    output = "\n\n---\n\n".join(formatted_chunks)
+
+    # Save the scope to a file
+    scope_path = os.path.join("workbench", "rag_results.md")
+    os.makedirs("workbench", exist_ok=True)
+
+    with open(scope_path, "w", encoding="utf-8") as f:
+        f.write(output)
+
+    return output
 
 
 async def list_skool_pages_helper(qdrant_client: QdrantClient) -> List[str]:
     """
     List all the skool pages from the vector database.
+
+    Args:
+        qdrant_client (QdrantClient): The qdrant client.
+
+    Returns:
+        List[str]: The urls of the skool pages.
     """
     try:
         result, _ = qdrant_client.scroll(collection_name="ship30")
@@ -111,12 +152,35 @@ async def list_skool_pages_helper(qdrant_client: QdrantClient) -> List[str]:
         return []
 
 
+# TODO: query is not correct for qdrant fix this if you move this to a tool
 # TODO I think that we need to reference the url chunks or title or something to get piece together larger chunks of information
-@pydantic_ai_writer.tool
-async def get_page_content(ctx: RunContext[PydanticAIDeps], url: str) -> str:
-    """
-    Get the content of a page from the vector database.
-    """
-    qdrant_client = ctx.deps.qdrant_client
-    result = qdrant_client.query(collection_name="ship30", query=url)
-    return result
+# @pydantic_ai_writer.tool
+# async def get_page_content(ctx: RunContext[PydanticAIDeps], url: str) -> str:
+#     """
+#     Get the content of a page from the vector database.
+
+#     Args:
+#         ctx (RunContext[PydanticAIDeps]): The context of the run.
+#         url (str): The url of the page to get the content of.
+
+#     Returns:
+#         str: The content of the page.
+#     """
+#     qdrant_client = ctx.deps.qdrant_client
+#     result = qdrant_client.query(collection_name="ship30", query=url)
+#     return result
+
+
+# @pydantic_ai_writer.tool
+# async def write_post(ctx: RunContext[PydanticAIDeps], post_type: str) -> str:
+#     """
+#     Write a post for the given social media platform aka post type.
+
+#     Args:
+#         ctx (RunContext[PydanticAIDeps]): The context of the run.
+#         post_type (str): The type of post to write.
+
+#     Returns:
+#         str: The post.
+#     """
+#     return "Hello, world!"

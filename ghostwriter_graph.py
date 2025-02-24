@@ -61,18 +61,20 @@ async def define_scope_with_reasoner(state: AgentState):
     User Topic: {state['latest_user_message']}
 
     Create a detailed scope document for the AI agent including:
-    - Hook & Title
-    - Body
-        - Include 3-5 main points
-        - For each point, give a detailed explanation of the point.
-    - Call to Action
-    - Format the response as a markdown document.
-        - Make sure to format for the given social media platform.
+        - Structure of the post
+        - What makes a post go viral
+        - Structure of the hook
+        - Structure of the body
+        - Structure of the call to action
+        - Any other rules the agent should follow when writing the post
 
-    Also based on these documentation pages available:
+    Do not write the post yourself, only write the scope.
+
+    Base your scope on these documentation pages available:
 
     {skool_pages_str}
 
+    Include a list of documentation pages that are relevant to creating this agent for the user in the scope document.
     """
 
     result = await reasoner.run(prompt)
@@ -147,22 +149,33 @@ async def finish_conversation(state: AgentState, writer):
     return {"messages": [result.new_messages_json()]}
 
 
+# builder = StateGraph(AgentState)
+
+# builder.add_node("define_scope_with_reasoner", define_scope_with_reasoner)
+# builder.add_node("writer_agent", writer_agent)
+# builder.add_node("get_next_user_message", get_next_user_message)
+# builder.add_node("finish_conversation", finish_conversation)
+
+# builder.add_edge(START, "define_scope_with_reasoner")
+# builder.add_edge("define_scope_with_reasoner", "writer_agent")
+# builder.add_edge("writer_agent", "get_next_user_message")
+# builder.add_conditional_edges(
+#     "get_next_user_message",
+#     route_user_message,
+#     {"writer_agent": "writer_agent", "finish_conversation": "finish_conversation"},
+# )
+# builder.add_edge("finish_conversation", END)
+
+
+# Testing the writer agent
 builder = StateGraph(AgentState)
 
 builder.add_node("define_scope_with_reasoner", define_scope_with_reasoner)
 builder.add_node("writer_agent", writer_agent)
-builder.add_node("get_next_user_message", get_next_user_message)
-builder.add_node("finish_conversation", finish_conversation)
 
 builder.add_edge(START, "define_scope_with_reasoner")
 builder.add_edge("define_scope_with_reasoner", "writer_agent")
-builder.add_edge("writer_agent", "get_next_user_message")
-builder.add_conditional_edges(
-    "get_next_user_message",
-    route_user_message,
-    {"writer_agent": "writer_agent", "finish_conversation": "finish_conversation"},
-)
-builder.add_edge("finish_conversation", END)
+builder.add_edge("writer_agent", END)
 
 
 # Configure persistence

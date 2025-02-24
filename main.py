@@ -93,3 +93,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# write a linkedin post about ai models.

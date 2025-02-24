@@ -1,11 +1,11 @@
 from __future__ import annotations
-from dotenv import load_dotenv
-from typing import List
+
 import asyncio
-import logfire
-import httpx
-import os
-from qdrant_client import QdrantClient
+import uuid
+from typing import List
+
+from dotenv import load_dotenv
+from langgraph.types import Command
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -13,14 +13,14 @@ from pydantic_ai.messages import (
     TextPart,
     UserPromptPart,
 )
-from ai_writer import pydantic_ai_writer, PydanticAIDeps
-from qdrant_utils import get_qdrant_client, get_ollama_flat_embedding_vector
+from qdrant_client import QdrantClient
+
+from ai_writer import PydanticAIDeps, pydantic_ai_writer
+from ghostwriter_graph import agentic_flow
+from qdrant_utils import get_qdrant_client
 
 # Load environment variables
 load_dotenv()
-
-# Configure logfire to suppress warnings
-logfire.configure(send_to_logfire="never")
 
 
 class CLI:
@@ -31,9 +31,25 @@ class CLI:
             reasoner_output="",
         )
 
+    async def run_agent_with_stream(self, user_input: str):
+        config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+        # Ensure the input includes the required keys
+        input_data = {
+            "latest_user_message": user_input,
+            "messages": self.messages,
+            "scope": "",  # Initialize scope if needed
+        }
+
+        async for msg in agentic_flow.astream(
+            {"latest_user_message": user_input}, config, stream_mode="custom"
+        ):
+            yield msg
+
     async def chat(self):
         print("Ghostwriter Agent CLI (type 'quit' to exit)")
-        print("What topic should we write about:")
+        print("Describe to me a topic and I'll write a post about it.")
+        print("Example: Write a post about the latest trends in AI.")
 
         try:
             while True:
@@ -41,44 +57,23 @@ class CLI:
                 if user_input.lower() == "quit":
                     break
 
-                # Run the agent with streaming
-                result = await pydantic_ai_writer.run(
-                    user_input, deps=self.deps, message_history=self.messages
-                )
+                # We append a new request to the conversation explicitly
+                self.messages.append({"type": "human", "content": user_input})
 
-                # Store the user message
-                self.messages.append(
-                    ModelRequest(parts=[UserPromptPart(content=user_input)])
-                )
+                # Display user prompt in the CLI
+                print(f"User: {user_input}")
 
-                # Store intermediary messages like tool calls and responses
-                filtered_messages = [
-                    msg
-                    for msg in result.new_messages()
-                    if not (
-                        hasattr(msg, "parts")
-                        and any(
-                            part.part_kind == "user-prompt" or part.part_kind == "text"
-                            for part in msg.parts
-                        )
-                    )
-                ]
-                self.messages.extend(filtered_messages)
+                # Display assistant response
+                response_content = ""
+                async for chunk in self.run_agent_with_stream(user_input):
+                    response_content += chunk
+                    print(f"Assistant: {response_content}")
 
-                # Optional if you want to print out tool calls and responses
-                # print(filtered_messages + "\n\n")
+                self.messages.append({"type": "ai", "content": response_content})
 
-                print(result.data)
-
-                # Add the final response from the agent
-                self.messages.append(
-                    ModelResponse(parts=[TextPart(content=result.data)])
-                )
         finally:
             # Close the Qdrant client if necessary
             # await self.deps.qdrant_client.close()
-            # If the Qdrant client does not need to be closed, remove this line
-            # If it does, use the appropriate method (e.g., self.deps.qdrant_client.close())
             pass
 
 
@@ -87,16 +82,5 @@ async def main():
     await cli.chat()
 
 
-async def tmp():
-    qdrant_client = get_qdrant_client(mode="docker")
-    collection = qdrant_client.get_collection(collection_name="ship30")
-    query_vector = await get_ollama_flat_embedding_vector(
-        "What is the best way to write an essay?"
-    )
-    result = qdrant_client.search(collection_name="ship30", query_vector=query_vector)
-    print(result)
-
-
 if __name__ == "__main__":
     asyncio.run(main())
-    # asyncio.run(tmp())
