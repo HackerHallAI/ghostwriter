@@ -1,5 +1,7 @@
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import VectorParams, Distance
+import ollama
+from typing import List
 
 
 def get_qdrant_client(
@@ -35,3 +37,19 @@ def ensure_collection_exists(
             print(f"Collection '{collection_name}' already exists.")
     except Exception as e:
         print(f"Error creating collection: {e}")
+
+
+async def get_ollama_flat_embedding_vector(text: str) -> List[float]:
+    """Get the embedding for a text using LLM."""
+    # try:
+    ollama_client = ollama.AsyncClient()
+    response = await ollama_client.embed(
+        model="nomic-embed-text",
+        input=text,
+    )
+
+    def flatten_embedding(embedding: List[List[float]]) -> List[float]:
+        return [item for sublist in embedding for item in sublist]
+
+    # TODO: if something is broken it is probably this!
+    return flatten_embedding(response["embeddings"])

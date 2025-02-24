@@ -199,3 +199,12 @@ if 2 is selected all of this is automated. AI looks at recent notes and thoughts
 docker run -p 6333:6333 -p 6334:6334 \
     -v "$(pwd)/qdrant_storage:/qdrant/storage:z" \
     qdrant/qdrant
+
+
+# Notes
+
+retrieve_relevant_documentation
+TODO: This should not use the user query to get the vector. 
+It was useful to figure out how to do this effectively but
+we actually just need to get all of the relevent information from the system prompt
+and create the basis of a post. 

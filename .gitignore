@@ -124,6 +124,7 @@ cython_debug/
 data/
 qdrant_data/
 qdrant_storage/
+workbench/
 
 # I think this will be okay.
 tmp*

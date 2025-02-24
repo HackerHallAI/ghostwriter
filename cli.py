@@ -14,6 +14,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from ai_writer import pydantic_ai_writer, PydanticAIDeps
+from qdrant_utils import get_qdrant_client, get_ollama_flat_embedding_vector
 
 # Load environment variables
 load_dotenv()
@@ -26,7 +27,7 @@ class CLI:
     def __init__(self):
         self.messages: List[ModelMessage] = []
         self.deps = PydanticAIDeps(
-            qdrant_client=QdrantClient(url="http://localhost:6333"),
+            qdrant_client=get_qdrant_client(mode="docker"),
             reasoner_output="",
         )
 
@@ -86,5 +87,16 @@ async def main():
     await cli.chat()
 
 
+async def tmp():
+    qdrant_client = get_qdrant_client(mode="docker")
+    collection = qdrant_client.get_collection(collection_name="ship30")
+    query_vector = await get_ollama_flat_embedding_vector(
+        "What is the best way to write an essay?"
+    )
+    result = qdrant_client.search(collection_name="ship30", query_vector=query_vector)
+    print(result)
+
+
 if __name__ == "__main__":
     asyncio.run(main())
+    # asyncio.run(tmp())

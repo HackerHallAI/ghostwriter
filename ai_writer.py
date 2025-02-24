@@ -10,6 +10,7 @@ from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.models.openai import OpenAIModel
 from qdrant_client import QdrantClient
 from typing import List
+from qdrant_utils import get_ollama_flat_embedding_vector
 
 load_dotenv()
 
@@ -73,6 +74,10 @@ def add_reasoner_output(ctx: RunContext[str]) -> str:
     """
 
 
+# TODO: This should not use the user query to get the vector.
+# It was useful to figure out how to do this effectively but
+# we actually just need to get all of the relevent information from the system prompt
+# and create the basis of a post.
 @pydantic_ai_writer.tool
 async def retrieve_relevant_documentation(
     ctx: RunContext[PydanticAIDeps], user_query: str
@@ -81,9 +86,13 @@ async def retrieve_relevant_documentation(
     Retrieve relevant documentation chunks based on the query with RAG.
     """
     qdrant_client = ctx.deps.qdrant_client
-    result = qdrant_client.query(
-        collection_name="web_crawled_data", query_text=user_query
-    )
+    # This was wrong!
+    # result = qdrant_client.query(collection_name="ship30", query_text=user_query)
+    # Need to turn user_query into a vector
+    # Below is a concept not how it actually works
+    # vector = qdrant_client.embed_query(user_query)
+    query_vector = await get_ollama_flat_embedding_vector(user_query)
+    result = qdrant_client.search(collection_name="ship30", query_vector=query_vector)
     return result
 
 
@@ -92,7 +101,7 @@ async def list_skool_pages_helper(qdrant_client: QdrantClient) -> List[str]:
     List all the skool pages from the vector database.
     """
     try:
-        result, _ = qdrant_client.scroll(collection_name="web_crawled_data")
+        result, _ = qdrant_client.scroll(collection_name="ship30")
         urls = [point.payload["url"] for point in result if "url" in point.payload]
         if not urls:
             print("No URLs found in the collection.")
@@ -109,5 +118,5 @@ async def get_page_content(ctx: RunContext[PydanticAIDeps], url: str) -> str:
     Get the content of a page from the vector database.
     """
     qdrant_client = ctx.deps.qdrant_client
-    result = qdrant_client.query(collection_name="web_crawled_data", query=url)
+    result = qdrant_client.query(collection_name="ship30", query=url)
     return result

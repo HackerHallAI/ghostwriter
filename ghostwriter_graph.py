@@ -41,7 +41,7 @@ end_conversation_agent = Agent(
 )
 
 
-qdrant_client = get_qdrant_client(mode="local")
+qdrant_client = get_qdrant_client(mode="docker")
 
 
 class AgentState(TypedDict):
@@ -57,21 +57,22 @@ async def define_scope_with_reasoner(state: AgentState):
     skool_pages = await list_skool_pages_helper(qdrant_client)
     skool_pages_str = "\n".join(skool_pages)
 
-    # Then, use the reasoner to define the scope
     prompt = f"""
-    User AI Agent Request: {state['latest_user_message']}
-    
-    Create detailed scope document for the AI agent including:
-    - Architecture diagram
-    - Core components
-    - External dependencies
-    - Testing strategy
+    User Topic: {state['latest_user_message']}
+
+    Create a detailed scope document for the AI agent including:
+    - Hook & Title
+    - Body
+        - Include 3-5 main points
+        - For each point, give a detailed explanation of the point.
+    - Call to Action
+    - Format the response as a markdown document.
+        - Make sure to format for the given social media platform.
 
     Also based on these documentation pages available:
 
     {skool_pages_str}
 
-    Include a list of documentation pages that are relevant to creating this agent for the user in the scope document.
     """
 
     result = await reasoner.run(prompt)
