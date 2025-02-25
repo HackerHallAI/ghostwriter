@@ -215,3 +215,26 @@ and create the basis of a post.
 1. The messages or original message from the user does not seem to be getting passed to the writer agent.
 
 This is shown in output/test_output.txt
+
+
+
+# Notes from 2025/02/26
+
+1. I have been working on this or a while now. I think I have good models and decent data.
+
+The issue is that the outputs from these agents are not as good as just running my content-create model that had some fine tuning.
+
+So I think this has something to do with the structure and prompts of the agents.
+
+I am going to recreate these in n8n just to see them function in the way that I think they should.
+
+Then when we get that working I will come back to the pydantic AI and see if I can get that working.
+
+I think I stubbornly want to make this work with the pydantic AI because I think it is the right way to go. That said, I know that my floaw is trying to do it the right way. Instead of just building the thing. So I am going to build the thing in n8n to prove there is a good output. Then I will come back to the pydantic AI and see if I can get that working to the same standard.
+
+
+
+
+
+
+

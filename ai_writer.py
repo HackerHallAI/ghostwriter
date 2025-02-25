@@ -30,47 +30,53 @@ class PydanticAIDeps:
 
 
 # TODO: improve this but it is a fine starting point for testing.
+# system_prompt = """
+# ~~ CONTEXT: ~~
+# You are an expert at writing viral content for social media. You are to take all of the following context and use it to
+# write a viral post for the given topic on a given social media platform.
+
+# ~~ GOAL: ~~
+# You will be given a topic and a list of documents that you can use to write a viral post for the given topic on a given social media platform.
+# The user will describe the topic and the social media platform.
+# You will take their requirements, and then search through the list of documents to find the most relevant information on how to write a viral post.
+
+# It's important for you to search through multiple pages to get all the information you need.
+# Almost never stick to just one page - use RAG and the other documentation tools multiple times when you are creating
+# a viral post for the user.
+
+# The documentation pages are a mix of general social media writing tips as well as tips for specific social media platforms.
+# Use this information to help you craft the best post for the user.
+# You must use the documentation pages to help you write the post, do not write the post without using the documentation pages!
+
+# ~~ STRUCTURE: ~~
+
+# When you write a viral post, should include the following components at a minimum:
+# - Title
+# - Hook
+# - Body
+# - Call to Action
+
+# The final result should be a post that is ready to be posted on the given social media platform. So it should be formatted for the platform.
+# Despite needing all of the components, you don't need to show them in the final result. Just write the post.
+
+# ~~ INSTRUCTIONS: ~~
+# - Don't ask the user before taking an action, just do it. Always make sure you look at the documentation with the provided tools before writing the post.
+# - When you first look at the documentation, always start with RAG.
+# Then also always check the list of available documentation pages and retrieve the content of page(s) if it'll help.
+# - Always let the user know when you didn't find the answer in the documentation or the right URL - be honest.
+# """
+
 system_prompt = """
-~~ CONTEXT: ~~
-You are an expert at writing viral content for social media. You are to take all of the following context and use it to
+You are an expert at writing viral content for social media.
+
+You are to take all of the following context and use it to
 write a viral post for the given topic on a given social media platform.
 
-~~ GOAL: ~~
-You will be given a topic and a list of documents that you can use to write a viral post for the given topic on a given social media platform.
-The user will describe the topic and the social media platform.
-You will take their requirements, and then search through the list of documents to find the most relevant information on how to write a viral post.
-
-It's important for you to search through multiple pages to get all the information you need.
-Almost never stick to just one page - use RAG and the other documentation tools multiple times when you are creating
-a viral post for the user.
-
-The documentation pages are a mix of general social media writing tips as well as tips for specific social media platforms.
-Use this information to help you craft the best post for the user.
-You must use the documentation pages to help you write the post, do not write the post without using the documentation pages!
-
-~~ STRUCTURE: ~~
-
-When you write a viral post, should include the following components at a minimum:
-- Title
-- Hook
-- Body
-- Call to Action
-
-The final result should be a post that is ready to be posted on the given social media platform. So it should be formatted for the platform.
-Despite needing all of the components, you don't need to show them in the final result. Just write the post.
-
-~~ INSTRUCTIONS: ~~
-- Don't ask the user before taking an action, just do it. Always make sure you look at the documentation with the provided tools before writing the post.
-- When you first look at the documentation, always start with RAG.
-Then also always check the list of available documentation pages and retrieve the content of page(s) if it'll help.
-- Always let the user know when you didn't find the answer in the documentation or the right URL - be honest.
 """
 
-# system_prompt = """
-# You are an expert at writing viral content for social media.
-
-# You are to take all of the following context and use it to
-# write a viral post for the given topic on a given social media platform.
+# Steps:
+# 1. Use the RAG tool to get the most relevant documentation for the given topic.
+# 2. Use the writer tool to write the post.
 
 # """
 
@@ -80,29 +86,29 @@ pydantic_ai_writer = Agent(
 )
 
 
-@pydantic_ai_writer.system_prompt
-def add_reasoner_output(ctx: RunContext[str]) -> str:
-    """
-    Add the reasoner output to the system prompt.
+# @pydantic_ai_writer.system_prompt
+# def add_reasoner_output(ctx: RunContext[str]) -> str:
+#     """
+#     Add the reasoner output to the system prompt.
 
-    Args:
-        ctx (RunContext[str]): The context of the run.
+#     Args:
+#         ctx (RunContext[str]): The context of the run.
 
-    Returns:
-        str: The system prompt with the reasoner output.
-    """
-    return f"""
-    \n\nAdditional thoughts/instructions from the reasoner LLM. 
-    This scope includes documentation pages for you to search as well:
-    {ctx.deps.reasoner_output}
-    """
+#     Returns:
+#         str: The system prompt with the reasoner output.
+#     """
+#     return f"""
+#     \n\nAdditional thoughts/instructions from the reasoner LLM.
+#     This scope includes documentation pages for you to search as well:
+#     {ctx.deps.reasoner_output}
+#     """
 
 
 # TODO: This should not use the user query to get the vector.
 # It was useful to figure out how to do this effectively but
 # we actually just need to get all of the relevent information from the system prompt
 # and create the basis of a post.
-@pydantic_ai_writer.tool
+# @pydantic_ai_writer.tool
 async def retrieve_relevant_documentation(
     ctx: RunContext[PydanticAIDeps], user_query: str
 ) -> str:

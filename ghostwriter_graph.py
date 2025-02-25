@@ -91,7 +91,9 @@ async def define_scope_with_reasoner(state: AgentState):
 
 
 async def writer_agent(state: AgentState, writer):
-    deps = PydanticAIDeps(qdrant_client=qdrant_client, reasoner_output=state["scope"])
+    # deps = PydanticAIDeps(qdrant_client=qdrant_client, reasoner_output=state["scope"])
+
+    deps = PydanticAIDeps(qdrant_client=qdrant_client, reasoner_output="")
 
     message_history: list[ModelMessage] = []
     for message_row in state["messages"]:
@@ -102,10 +104,6 @@ async def writer_agent(state: AgentState, writer):
         state["latest_user_message"], deps=deps, message_history=message_history
     )
 
-    print(f"Messages: {state['messages']}")
-
-    print(f"State.scope: {state['scope']}\n\n")
-    print(f"State.messages: {['\n'.join(message) for message in message_history]}\n\n")
     writer(result.data)
 
     return {"messages": [result.new_messages_json()]}
@@ -173,14 +171,25 @@ async def finish_conversation(state: AgentState, writer):
 # builder.add_edge("finish_conversation", END)
 
 
+# # Testing the writer agent
+# builder = StateGraph(AgentState)
+
+# builder.add_node("define_scope_with_reasoner", define_scope_with_reasoner)
+# builder.add_node("writer_agent", writer_agent)
+
+# builder.add_edge(START, "define_scope_with_reasoner")
+# builder.add_edge("define_scope_with_reasoner", "writer_agent")
+# builder.add_edge("writer_agent", END)
+
+
 # Testing the writer agent
 builder = StateGraph(AgentState)
 
-builder.add_node("define_scope_with_reasoner", define_scope_with_reasoner)
+# builder.add_node("define_scope_with_reasoner", define_scope_with_reasoner)
 builder.add_node("writer_agent", writer_agent)
 
-builder.add_edge(START, "define_scope_with_reasoner")
-builder.add_edge("define_scope_with_reasoner", "writer_agent")
+# builder.add_edge(START, "define_scope_with_reasoner")
+builder.add_edge(START, "writer_agent")
 builder.add_edge("writer_agent", END)
 
 
