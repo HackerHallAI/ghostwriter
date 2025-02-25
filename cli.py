@@ -35,15 +35,12 @@ class CLI:
         config = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
         # Ensure the input includes the required keys
-        input_data = {
-            "latest_user_message": user_input,
-            "messages": self.messages,
-            "scope": "",  # Initialize scope if needed
-        }
+        self.messages.append({"type": "human", "content": user_input})
 
         async for msg in agentic_flow.astream(
             {"latest_user_message": user_input}, config, stream_mode="custom"
         ):
+            self.messages.append({"type": "ai", "content": msg})
             yield msg
 
     async def chat(self):

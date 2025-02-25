@@ -32,17 +32,21 @@ class PydanticAIDeps:
 # TODO: improve this but it is a fine starting point for testing.
 system_prompt = """
 ~~ CONTEXT: ~~
-You are an expert at writing viral content for social media. You are to take all of the following context and use it to 
+You are an expert at writing viral content for social media. You are to take all of the following context and use it to
 write a viral post for the given topic on a given social media platform.
 
 ~~ GOAL: ~~
 You will be given a topic and a list of documents that you can use to write a viral post for the given topic on a given social media platform.
 The user will describe the topic and the social media platform.
-You will take their requirements, and then search through the list of documents to find the most relevant information to write a viral post.
+You will take their requirements, and then search through the list of documents to find the most relevant information on how to write a viral post.
 
 It's important for you to search through multiple pages to get all the information you need.
 Almost never stick to just one page - use RAG and the other documentation tools multiple times when you are creating
 a viral post for the user.
+
+The documentation pages are a mix of general social media writing tips as well as tips for specific social media platforms.
+Use this information to help you craft the best post for the user.
+You must use the documentation pages to help you write the post, do not write the post without using the documentation pages!
 
 ~~ STRUCTURE: ~~
 
@@ -52,13 +56,23 @@ When you write a viral post, should include the following components at a minimu
 - Body
 - Call to Action
 
+The final result should be a post that is ready to be posted on the given social media platform. So it should be formatted for the platform.
+Despite needing all of the components, you don't need to show them in the final result. Just write the post.
+
 ~~ INSTRUCTIONS: ~~
 - Don't ask the user before taking an action, just do it. Always make sure you look at the documentation with the provided tools before writing the post.
 - When you first look at the documentation, always start with RAG.
 Then also always check the list of available documentation pages and retrieve the content of page(s) if it'll help.
 - Always let the user know when you didn't find the answer in the documentation or the right URL - be honest.
-
 """
+
+# system_prompt = """
+# You are an expert at writing viral content for social media.
+
+# You are to take all of the following context and use it to
+# write a viral post for the given topic on a given social media platform.
+
+# """
 
 
 pydantic_ai_writer = Agent(
@@ -79,7 +93,7 @@ def add_reasoner_output(ctx: RunContext[str]) -> str:
     """
     return f"""
     \n\nAdditional thoughts/instructions from the reasoner LLM. 
-    This scope includes documentation pages for you to search as well: 
+    This scope includes documentation pages for you to search as well:
     {ctx.deps.reasoner_output}
     """
 
@@ -153,6 +167,16 @@ async def list_skool_pages_helper(qdrant_client: QdrantClient) -> List[str]:
         return []
 
 
+@pydantic_ai_writer.tool
+async def write_post(ctx: RunContext[PydanticAIDeps], post_type: str) -> str:
+    """
+    Write a post for the given social media platform aka post type.
+    """
+    print(f"Write post: {post_type}")
+
+    # TODO: Write the post
+
+
 # TODO: query is not correct for qdrant fix this if you move this to a tool
 # TODO I think that we need to reference the url chunks or title or something to get piece together larger chunks of information
 # @pydantic_ai_writer.tool
@@ -170,18 +194,3 @@ async def list_skool_pages_helper(qdrant_client: QdrantClient) -> List[str]:
 #     qdrant_client = ctx.deps.qdrant_client
 #     result = qdrant_client.query(collection_name="ship30", query=url)
 #     return result
-
-
-# @pydantic_ai_writer.tool
-# async def write_post(ctx: RunContext[PydanticAIDeps], post_type: str) -> str:
-#     """
-#     Write a post for the given social media platform aka post type.
-
-#     Args:
-#         ctx (RunContext[PydanticAIDeps]): The context of the run.
-#         post_type (str): The type of post to write.
-
-#     Returns:
-#         str: The post.
-#     """
-#     return "Hello, world!"

@@ -58,7 +58,7 @@ async def define_scope_with_reasoner(state: AgentState):
     skool_pages_str = "\n".join(skool_pages)
 
     prompt = f"""
-    User Topic: {state['latest_user_message']}
+    User Topic & Platform: {state['latest_user_message']}
 
     Create a detailed scope document for the AI agent including:
         - Structure of the post
@@ -101,6 +101,8 @@ async def writer_agent(state: AgentState, writer):
     result = await pydantic_ai_writer.run(
         state["latest_user_message"], deps=deps, message_history=message_history
     )
+
+    print(f"Messages: {state['messages']}")
 
     print(f"State.scope: {state['scope']}\n\n")
     print(f"State.messages: {['\n'.join(message) for message in message_history]}\n\n")

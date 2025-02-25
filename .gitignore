@@ -127,6 +127,7 @@ qdrant_storage/
 workbench/
 model_files/
 output/
+examples/
 
 # I think this will be okay.
 tmp*
